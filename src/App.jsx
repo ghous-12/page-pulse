@@ -1,69 +1,82 @@
 import { useState } from 'react'
 import { analyzeUrl, scoreTone } from './lib/pagespeed.js'
 
-const TONE_STYLES = {
+const TONE = {
   danger: {
-    ring: 'stroke-danger',
-    text: 'text-danger',
-    glow: 'bg-danger/15',
-    label: 'Needs work',
+    bar: 'bg-rose',
+    text: 'text-rose',
+    soft: 'bg-rose/10 border-rose/25',
+    label: 'Slow',
   },
   warn: {
-    ring: 'stroke-warn',
-    text: 'text-warn',
-    glow: 'bg-warn/15',
-    label: 'Average',
+    bar: 'bg-amber',
+    text: 'text-amber',
+    soft: 'bg-amber/10 border-amber/25',
+    label: 'Okay',
   },
   good: {
-    ring: 'stroke-pulse',
-    text: 'text-pulse',
-    glow: 'bg-pulse/15',
-    label: 'Good',
+    bar: 'bg-teal',
+    text: 'text-teal',
+    soft: 'bg-teal/10 border-teal/25',
+    label: 'Fast',
   },
 }
 
-function ScoreGauge({ score }) {
+function PulseWave({ active = false }) {
+  return (
+    <svg
+      className={`pulse-wave mx-auto h-10 w-full max-w-md ${active ? 'is-active' : ''}`}
+      viewBox="0 0 400 40"
+      fill="none"
+      aria-hidden
+    >
+      <path
+        className="pulse-wave__track"
+        d="M0 20 H60 L75 20 L90 6 L105 34 L120 12 L135 28 L150 20 H400"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        className="pulse-wave__beam"
+        d="M0 20 H60 L75 20 L90 6 L105 34 L120 12 L135 28 L150 20 H400"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function ScoreReadout({ score }) {
   const tone = scoreTone(score)
-  const styles = TONE_STYLES[tone]
-  const radius = 54
-  const circumference = 2 * Math.PI * radius
-  const progress = Math.min(Math.max(score, 0), 100) / 100
-  const offset = circumference * (1 - progress)
+  const styles = TONE[tone]
+  const width = `${Math.min(Math.max(score, 0), 100)}%`
 
   return (
-    <div className="relative mx-auto flex h-40 w-40 items-center justify-center">
-      <div
-        className={`absolute inset-4 rounded-full blur-2xl ${styles.glow}`}
-        aria-hidden
-      />
-      <svg className="h-full w-full -rotate-90" viewBox="0 0 128 128" aria-hidden>
-        <circle
-          cx="64"
-          cy="64"
-          r={radius}
-          fill="none"
-          strokeWidth="8"
-          className="stroke-ink-border"
-        />
-        <circle
-          cx="64"
-          cy="64"
-          r={radius}
-          fill="none"
-          strokeWidth="8"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          className={`${styles.ring} transition-[stroke-dashoffset] duration-700 ease-out`}
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className={`font-display text-5xl font-extrabold leading-none ${styles.text}`}>
-          {score}
-        </span>
-        <span className="mt-1 text-xs font-medium uppercase tracking-wider text-fog">
+    <div className="score-reveal">
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-hush">
+            Mobile score
+          </p>
+          <p className={`mt-2 font-display text-7xl font-semibold leading-none tracking-tight sm:text-8xl ${styles.text}`}>
+            {score}
+          </p>
+        </div>
+        <span
+          className={`mb-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wider ${styles.soft} ${styles.text}`}
+        >
           {styles.label}
         </span>
+      </div>
+      <div className="mt-6 h-1.5 overflow-hidden rounded-full bg-rule">
+        <div
+          className={`h-full rounded-full ${styles.bar} transition-[width] duration-700 ease-out`}
+          style={{ width }}
+        />
       </div>
     </div>
   )
@@ -71,26 +84,27 @@ function ScoreGauge({ score }) {
 
 function Metric({ label, value }) {
   return (
-    <div className="min-w-0">
-      <p className="text-xs font-medium uppercase tracking-wider text-fog">{label}</p>
-      <p className="mt-1 truncate font-display text-2xl font-bold text-snow">{value}</p>
+    <div className="min-w-0 border-t border-rule pt-4 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-5 first:border-l-0 first:pl-0">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-hush">
+        {label}
+      </p>
+      <p className="mt-2 truncate font-mono text-xl font-medium text-chalk sm:text-2xl">
+        {value}
+      </p>
     </div>
   )
 }
 
-function LoadingPulse() {
+function LoadingState() {
   return (
     <div
-      className="flex flex-col items-center gap-4 py-12"
+      className="mt-12 flex flex-col items-center gap-3 text-center"
       role="status"
       aria-live="polite"
     >
-      <div className="relative h-12 w-12">
-        <span className="absolute inset-0 animate-ping rounded-full bg-pulse/30" />
-        <span className="absolute inset-2 rounded-full bg-pulse/80" />
-      </div>
-      <p className="text-sm text-fog">Running mobile PageSpeed analysis…</p>
-      <p className="text-xs text-fog/70">This usually takes a few seconds</p>
+      <PulseWave active />
+      <p className="text-sm font-medium text-chalk">Checking mobile load time…</p>
+      <p className="text-xs text-hush">Usually a few seconds</p>
     </div>
   )
 }
@@ -103,6 +117,8 @@ export default function App() {
 
   async function handleSubmit(event) {
     event.preventDefault()
+    if (!url.trim() || status === 'loading') return
+
     setStatus('loading')
     setErrorMessage('')
     setResult(null)
@@ -120,37 +136,31 @@ export default function App() {
   }
 
   const isLoading = status === 'loading'
+  const canSubmit = Boolean(url.trim()) && !isLoading
 
   return (
     <div className="relative min-h-screen overflow-hidden">
-      <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(61,214,140,0.08),_transparent_55%),radial-gradient(ellipse_at_bottom_right,_rgba(240,160,75,0.06),_transparent_45%),linear-gradient(180deg,_#0a0e12_0%,_#0d1218_50%,_#0a0e12_100%)]"
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.035]"
-        style={{
-          backgroundImage:
-            'url("data:image/svg+xml,%3Csvg viewBox=%270 0 200 200%27 xmlns=%27http://www.w3.org/2000/svg%27%3E%3Cfilter id=%27n%27%3E%3CfeTurbulence type=%27fractalNoise%27 baseFrequency=%270.85%27 numOctaves=%274%27 stitchTiles=%27stitch%27/%3E%3C/filter%3E%3Crect width=%27100%25%27 height=%27100%25%27 filter=%27url(%23n)%27/%3E%3C/svg%3E")',
-        }}
-        aria-hidden
-      />
+      <div className="pointer-events-none absolute inset-0 app-atmosphere" aria-hidden />
+      <div className="pointer-events-none absolute inset-0 app-grid" aria-hidden />
 
-      <main className="relative mx-auto flex min-h-screen w-full max-w-2xl flex-col justify-center px-5 py-16 sm:px-8">
-        <header className="mb-10 text-center sm:mb-12">
-          <h1 className="font-display text-5xl font-extrabold tracking-tight text-snow sm:text-6xl">
+      <main className="relative mx-auto flex min-h-screen w-full max-w-xl flex-col justify-center px-5 py-16 sm:max-w-2xl sm:px-8">
+        <header className="hero-in mb-10 text-center sm:mb-12">
+          <h1 className="font-display text-[2.75rem] font-semibold leading-none tracking-tight text-chalk sm:text-6xl">
             Page Pulse
           </h1>
-          <p className="mx-auto mt-3 max-w-md text-base text-fog sm:text-lg">
-            Check how fast a site loads on mobile — score, key timings, and what to fix.
+          <div className="mt-5 text-signal">
+            <PulseWave active={isLoading} />
+          </div>
+          <p className="mx-auto mt-5 max-w-md text-base leading-relaxed text-hush sm:text-lg">
+            Enter a URL. See how fast it loads on mobile — and what is slowing it down.
           </p>
         </header>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <label htmlFor="url" className="sr-only">
+        <form onSubmit={handleSubmit} className="hero-in hero-in-delay">
+          <label htmlFor="url" className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.2em] text-hush">
             Website URL
           </label>
-          <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
             <input
               id="url"
               type="text"
@@ -160,68 +170,79 @@ export default function App() {
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               disabled={isLoading}
-              className="w-full flex-1 rounded-xl border border-ink-border bg-ink-raised/80 px-4 py-3.5 text-snow outline-none transition placeholder:text-fog/50 focus:border-pulse/50 focus:ring-2 focus:ring-pulse/20 disabled:opacity-60"
+              className="w-full flex-1 rounded-lg border border-rule bg-slate/80 px-4 py-3.5 text-chalk outline-none transition placeholder:text-hush/45 focus:border-signal/60 focus:ring-2 focus:ring-signal/20 disabled:cursor-not-allowed disabled:opacity-55"
             />
             <button
               type="submit"
-              disabled={isLoading || !url.trim()}
-              className="rounded-xl bg-pulse px-6 py-3.5 font-display text-base font-bold text-ink transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pulse disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!canSubmit}
+              aria-busy={isLoading}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-signal px-6 py-3.5 font-display text-sm font-semibold tracking-wide text-void transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:brightness-100"
             >
-              {isLoading ? 'Analyzing…' : 'Analyze'}
+              {isLoading ? (
+                <>
+                  <span className="btn-spinner" aria-hidden />
+                  Analyzing…
+                </>
+              ) : (
+                'Check pulse'
+              )}
             </button>
           </div>
         </form>
 
         {status === 'error' && (
           <div
-            className="mt-6 rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger"
+            className="mt-6 rounded-lg border border-rose/30 bg-rose/10 px-4 py-3 text-sm leading-relaxed text-rose"
             role="alert"
           >
             {errorMessage}
           </div>
         )}
 
-        {isLoading && <LoadingPulse />}
+        {isLoading && <LoadingState />}
 
         {status === 'success' && result && (
-          <section className="mt-10 animate-[fadeUp_0.45s_ease-out]" aria-live="polite">
-            <p className="mb-6 truncate text-center text-sm text-fog" title={result.url}>
+          <section className="mt-12 space-y-10" aria-live="polite">
+            <p
+              className="truncate text-center font-mono text-xs text-hush sm:text-sm"
+              title={result.url}
+            >
               {result.url}
             </p>
 
-            <ScoreGauge score={result.score} />
+            <ScoreReadout score={result.score} />
 
-            <div className="mt-10 grid grid-cols-1 gap-6 border-t border-ink-border pt-8 sm:grid-cols-3 sm:gap-4">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-3 sm:gap-0">
               <Metric label="First Contentful Paint" value={result.fcp} />
               <Metric label="Time to Interactive" value={result.tti} />
               <Metric label="Total Blocking Time" value={result.tbt} />
             </div>
 
-            <div className="mt-10 border-t border-ink-border pt-8">
-              <h2 className="font-display text-lg font-bold text-snow">
-                Top opportunities
+            <div>
+              <h2 className="font-display text-base font-semibold tracking-wide text-chalk">
+                What to fix first
               </h2>
               {result.opportunities.length === 0 ? (
-                <p className="mt-3 text-sm text-fog">
+                <p className="mt-3 text-sm text-hush">
                   No major opportunities reported for this page.
                 </p>
               ) : (
-                <ol className="mt-4 space-y-3">
+                <ul className="mt-4 space-y-2">
                   {result.opportunities.map((item, index) => (
                     <li
                       key={`${item.title}-${index}`}
-                      className="flex gap-3 rounded-xl border border-ink-border bg-ink-raised/50 px-4 py-3"
+                      className="flex gap-4 border border-rule bg-slate/40 px-4 py-3.5"
                     >
-                      <span className="font-display text-sm font-bold text-pulse">
-                        {index + 1}
+                      <span className="font-mono text-sm font-medium text-signal tabular-nums">
+                        {String(index + 1).padStart(2, '0')}
                       </span>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-snow">{item.title}</p>
-                        <p className="mt-0.5 text-xs text-fog">{item.savings}</p>
+                        <p className="text-sm font-medium text-chalk">{item.title}</p>
+                        <p className="mt-1 font-mono text-xs text-hush">{item.savings}</p>
                       </div>
                     </li>
                   ))}
-                </ol>
+                </ul>
               )}
             </div>
           </section>
@@ -229,9 +250,72 @@ export default function App() {
       </main>
 
       <style>{`
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(12px); }
+        .app-atmosphere {
+          background:
+            radial-gradient(ellipse 80% 50% at 50% -10%, rgba(110, 182, 255, 0.14), transparent 55%),
+            radial-gradient(ellipse 45% 35% at 100% 80%, rgba(78, 205, 196, 0.06), transparent 50%),
+            linear-gradient(180deg, #05080f 0%, #0a101c 48%, #05080f 100%);
+        }
+
+        .app-grid {
+          opacity: 0.22;
+          background-image:
+            linear-gradient(rgba(36, 48, 68, 0.55) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(36, 48, 68, 0.55) 1px, transparent 1px);
+          background-size: 48px 48px;
+          mask-image: radial-gradient(ellipse 70% 60% at 50% 35%, black, transparent);
+        }
+
+        .pulse-wave__track {
+          color: #243044;
+        }
+
+        .pulse-wave__beam {
+          color: #6eb6ff;
+          stroke-dasharray: 420;
+          stroke-dashoffset: 420;
+          animation: pulse-draw 3.2s ease-in-out infinite;
+        }
+
+        .pulse-wave.is-active .pulse-wave__beam {
+          animation-duration: 0.9s;
+        }
+
+        .btn-spinner {
+          width: 0.9rem;
+          height: 0.9rem;
+          border: 2px solid rgba(5, 8, 15, 0.25);
+          border-top-color: #05080f;
+          border-radius: 9999px;
+          animation: spin 0.7s linear infinite;
+        }
+
+        .hero-in {
+          animation: rise 0.55s ease-out both;
+        }
+
+        .hero-in-delay {
+          animation-delay: 0.08s;
+        }
+
+        .score-reveal {
+          animation: rise 0.5s ease-out both;
+        }
+
+        @keyframes pulse-draw {
+          0% { stroke-dashoffset: 420; opacity: 0.35; }
+          35% { opacity: 1; }
+          70% { stroke-dashoffset: 0; opacity: 1; }
+          100% { stroke-dashoffset: -40; opacity: 0.35; }
+        }
+
+        @keyframes rise {
+          from { opacity: 0; transform: translateY(14px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
         }
       `}</style>
     </div>

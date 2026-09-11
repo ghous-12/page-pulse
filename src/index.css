@@ -1,18 +1,20 @@
 @import "tailwindcss";
 
 @theme {
-  --font-display: "Syne", sans-serif;
-  --font-sans: "DM Sans", sans-serif;
+  --font-display: "Unbounded", sans-serif;
+  --font-sans: "Manrope", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
-  --color-ink: #0a0e12;
-  --color-ink-raised: #121820;
-  --color-ink-border: #1e2a36;
-  --color-fog: #8b9aab;
-  --color-snow: #e8eef4;
-  --color-pulse: #3dd68c;
-  --color-pulse-dim: #1a3d2e;
-  --color-warn: #f0a04b;
-  --color-danger: #e85d5d;
+  --color-void: #05080f;
+  --color-slate: #121826;
+  --color-rule: #243044;
+  --color-hush: #8b95a8;
+  --color-chalk: #eef2f7;
+  --color-signal: #6eb6ff;
+  --color-signal-deep: #1a3a5c;
+  --color-amber: #e8a54b;
+  --color-rose: #f07178;
+  --color-teal: #4ecdc4;
 }
 
 @layer base {
@@ -24,12 +26,42 @@
     margin: 0;
     min-height: 100vh;
     font-family: var(--font-sans);
-    background-color: var(--color-ink);
-    color: var(--color-snow);
+    background-color: var(--color-void);
+    color: var(--color-chalk);
     -webkit-font-smoothing: antialiased;
   }
 
   #root {
     min-height: 100vh;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+  }
+
+  .font-mono {
+    font-family: var(--font-mono);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
