@@ -6,18 +6,21 @@ const TONE = {
     bar: 'bg-rose',
     text: 'text-rose',
     soft: 'bg-rose/10 border-rose/25',
+    dot: 'bg-rose',
     label: 'Slow',
   },
   warn: {
     bar: 'bg-amber',
     text: 'text-amber',
     soft: 'bg-amber/10 border-amber/25',
+    dot: 'bg-amber',
     label: 'Okay',
   },
   good: {
     bar: 'bg-teal',
     text: 'text-teal',
     soft: 'bg-teal/10 border-teal/25',
+    dot: 'bg-teal',
     label: 'Fast',
   },
 }
@@ -62,7 +65,9 @@ function ScoreReadout({ score }) {
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-hush">
             Mobile score
           </p>
-          <p className={`mt-2 font-display text-7xl font-semibold leading-none tracking-tight sm:text-8xl ${styles.text}`}>
+          <p
+            className={`mt-2 font-display text-7xl font-semibold leading-none tracking-tight sm:text-8xl ${styles.text}`}
+          >
             {score}
           </p>
         </div>
@@ -82,15 +87,73 @@ function ScoreReadout({ score }) {
   )
 }
 
-function Metric({ label, value }) {
+function MetricCell({ metric }) {
+  const styles = TONE[metric.tone] || TONE.warn
+
   return (
-    <div className="min-w-0 border-t border-rule pt-4 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-5 first:border-l-0 first:pl-0">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-hush">
-        {label}
-      </p>
+    <div className="min-w-0 py-4 sm:px-3">
+      <div className="flex items-center gap-2">
+        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${styles.dot}`} aria-hidden />
+        <p className="font-mono text-xs font-semibold tracking-wide text-signal">
+          {metric.acronym}
+        </p>
+      </div>
       <p className="mt-2 truncate font-mono text-xl font-medium text-chalk sm:text-2xl">
-        {value}
+        {metric.value}
       </p>
+      <p className="mt-1 text-[11px] leading-snug text-hush">{metric.label}</p>
+    </div>
+  )
+}
+
+function MetricsStrip({ metrics }) {
+  return (
+    <div>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-hush">
+        Lab metrics
+      </p>
+      <div className="mt-2 grid grid-cols-1 divide-y divide-rule border-y border-rule sm:grid-cols-5 sm:divide-x sm:divide-y-0">
+        {metrics.map((metric) => (
+          <MetricCell key={metric.id} metric={metric} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function IssuesList({ issues }) {
+  return (
+    <div>
+      <h2 className="font-display text-base font-semibold tracking-wide text-chalk">
+        What to fix first
+      </h2>
+      <p className="mt-1 text-sm text-hush">
+        Ranked by estimated impact on load time.
+      </p>
+      {issues.length === 0 ? (
+        <p className="mt-4 text-sm text-hush">
+          No major opportunities or insights reported for this page.
+        </p>
+      ) : (
+        <ol className="mt-4 space-y-2">
+          {issues.map((item, index) => (
+            <li
+              key={item.id || `${item.title}-${index}`}
+              className="flex gap-4 border border-rule bg-slate/40 px-4 py-3.5"
+            >
+              <span className="font-mono text-sm font-medium text-signal tabular-nums">
+                {String(index + 1).padStart(2, '0')}
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-chalk">{item.title}</p>
+                <p className="mt-1 font-mono text-xs leading-relaxed text-hush">
+                  {item.detail}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
     </div>
   )
 }
@@ -139,11 +202,11 @@ export default function App() {
   const canSubmit = Boolean(url.trim()) && !isLoading
 
   return (
-    <div className="relative min-h-screen overflow-hidden">
+    <div className="relative min-h-screen overflow-x-hidden">
       <div className="pointer-events-none absolute inset-0 app-atmosphere" aria-hidden />
       <div className="pointer-events-none absolute inset-0 app-grid" aria-hidden />
 
-      <main className="relative mx-auto flex min-h-screen w-full max-w-xl flex-col justify-center px-5 py-16 sm:max-w-2xl sm:px-8">
+      <main className="relative mx-auto flex min-h-screen w-full max-w-xl flex-col justify-center px-5 py-16 sm:max-w-3xl sm:px-8">
         <header className="hero-in mb-10 text-center sm:mb-12">
           <h1 className="font-display text-[2.75rem] font-semibold leading-none tracking-tight text-chalk sm:text-6xl">
             Page Pulse
@@ -152,12 +215,15 @@ export default function App() {
             <PulseWave active={isLoading} />
           </div>
           <p className="mx-auto mt-5 max-w-md text-base leading-relaxed text-hush sm:text-lg">
-            Enter a URL. See how fast it loads on mobile — and what is slowing it down.
+            Enter a URL. See the mobile performance score, core lab metrics, and what to fix first.
           </p>
         </header>
 
         <form onSubmit={handleSubmit} className="hero-in hero-in-delay">
-          <label htmlFor="url" className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.2em] text-hush">
+          <label
+            htmlFor="url"
+            className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.2em] text-hush"
+          >
             Website URL
           </label>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
@@ -202,7 +268,7 @@ export default function App() {
         {isLoading && <LoadingState />}
 
         {status === 'success' && result && (
-          <section className="mt-12 space-y-10" aria-live="polite">
+          <section className="mt-12 space-y-10 score-reveal" aria-live="polite">
             <p
               className="truncate text-center font-mono text-xs text-hush sm:text-sm"
               title={result.url}
@@ -211,40 +277,8 @@ export default function App() {
             </p>
 
             <ScoreReadout score={result.score} />
-
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-3 sm:gap-0">
-              <Metric label="First Contentful Paint" value={result.fcp} />
-              <Metric label="Time to Interactive" value={result.tti} />
-              <Metric label="Total Blocking Time" value={result.tbt} />
-            </div>
-
-            <div>
-              <h2 className="font-display text-base font-semibold tracking-wide text-chalk">
-                What to fix first
-              </h2>
-              {result.opportunities.length === 0 ? (
-                <p className="mt-3 text-sm text-hush">
-                  No major opportunities reported for this page.
-                </p>
-              ) : (
-                <ul className="mt-4 space-y-2">
-                  {result.opportunities.map((item, index) => (
-                    <li
-                      key={`${item.title}-${index}`}
-                      className="flex gap-4 border border-rule bg-slate/40 px-4 py-3.5"
-                    >
-                      <span className="font-mono text-sm font-medium text-signal tabular-nums">
-                        {String(index + 1).padStart(2, '0')}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-chalk">{item.title}</p>
-                        <p className="mt-1 font-mono text-xs text-hush">{item.savings}</p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+            <MetricsStrip metrics={result.metrics} />
+            <IssuesList issues={result.opportunities} />
           </section>
         )}
       </main>

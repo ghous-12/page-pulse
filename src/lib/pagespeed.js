@@ -1,6 +1,35 @@
 const PSI_ENDPOINT =
   'https://www.googleapis.com/pagespeedonline/v5/runPagespeed'
 
+/** Scored lab metrics that drive the performance score (weight > 0). */
+const SCORED_METRICS = [
+  {
+    id: 'first-contentful-paint',
+    acronym: 'FCP',
+    label: 'First Contentful Paint',
+  },
+  {
+    id: 'largest-contentful-paint',
+    acronym: 'LCP',
+    label: 'Largest Contentful Paint',
+  },
+  {
+    id: 'total-blocking-time',
+    acronym: 'TBT',
+    label: 'Total Blocking Time',
+  },
+  {
+    id: 'cumulative-layout-shift',
+    acronym: 'CLS',
+    label: 'Cumulative Layout Shift',
+  },
+  {
+    id: 'speed-index',
+    acronym: 'SI',
+    label: 'Speed Index',
+  },
+]
+
 /**
  * Normalize raw user input into an absolute https URL.
  * @param {string} input
@@ -35,56 +64,125 @@ export function normalizeUrl(input) {
 }
 
 /**
- * @param {number | null | undefined} score 0–100
+ * @param {number | null | undefined} score 0–100 category score, or 0–1 audit score
+ * @param {'category' | 'audit'} [scale]
  * @returns {'danger' | 'warn' | 'good'}
  */
-export function scoreTone(score) {
+export function scoreTone(score, scale = 'category') {
   if (score == null || Number.isNaN(score)) return 'danger'
-  if (score < 50) return 'danger'
-  if (score < 90) return 'warn'
+  const value = scale === 'audit' ? score * 100 : score
+  if (value < 50) return 'danger'
+  if (value < 90) return 'warn'
   return 'good'
 }
 
 /**
- * @param {Record<string, unknown>} audits
- * @returns {{ title: string, savings: string }[]}
+ * @param {Record<string, any>} audits
  */
-function topOpportunities(audits) {
-  return Object.values(audits)
-    .filter(
-      (audit) =>
-        audit &&
-        typeof audit === 'object' &&
-        audit.details?.type === 'opportunity' &&
-        typeof audit.title === 'string',
-    )
-    .sort(
-      (a, b) =>
-        (b.details?.overallSavingsMs ?? 0) - (a.details?.overallSavingsMs ?? 0),
-    )
-    .slice(0, 3)
-    .map((audit) => {
-      const ms = audit.details?.overallSavingsMs
-      const savings =
-        typeof ms === 'number' && ms > 0
-          ? `Est. savings ${Math.round(ms)} ms`
-          : audit.displayValue || 'Opportunity'
-      return { title: audit.title, savings }
-    })
+function parseMetrics(audits) {
+  return SCORED_METRICS.map((metric) => {
+    const audit = audits[metric.id]
+    const score =
+      typeof audit?.score === 'number' ? audit.score : null
+
+    return {
+      id: metric.id,
+      acronym: metric.acronym,
+      label: metric.label,
+      value: audit?.displayValue || '—',
+      score,
+      tone: scoreTone(score, 'audit'),
+    }
+  })
 }
 
 /**
- * Fetch and parse mobile PageSpeed Insights for a URL.
- * @param {string} rawUrl
- * @returns {Promise<{
- *   url: string,
- *   score: number,
- *   fcp: string,
- *   tti: string,
- *   tbt: string,
- *   opportunities: { title: string, savings: string }[],
- * }>}
+ * Ranked fixes: classic opportunities first, then failing insights/diagnostics.
+ * @param {Record<string, any>} audits
+ * @returns {{ title: string, detail: string, id: string }[]}
  */
+function topIssues(audits) {
+  const seen = new Set()
+  /** @type {{ title: string, detail: string, id: string, rank: number }[]} */
+  const ranked = []
+
+  for (const [id, audit] of Object.entries(audits)) {
+    if (!audit || typeof audit !== 'object' || typeof audit.title !== 'string') {
+      continue
+    }
+
+    if (audit.details?.type === 'opportunity') {
+      const ms = audit.details?.overallSavingsMs ?? 0
+      const bytes = audit.details?.overallSavingsBytes ?? 0
+      let detail = audit.displayValue || ''
+      if (typeof ms === 'number' && ms > 0) {
+        detail = `Est. savings ${Math.round(ms)} ms`
+      } else if (typeof bytes === 'number' && bytes > 0) {
+        detail = `Est. savings ${formatBytes(bytes)}`
+      }
+      ranked.push({
+        id,
+        title: audit.title,
+        detail: detail || 'Worth improving',
+        rank: 1_000_000 + (typeof ms === 'number' ? ms : 0) + bytes / 1000,
+      })
+      seen.add(id)
+    }
+  }
+
+  for (const [id, audit] of Object.entries(audits)) {
+    if (seen.has(id) || !audit || typeof audit !== 'object') continue
+    if (typeof audit.score !== 'number' || audit.score >= 0.9) continue
+    if (audit.scoreDisplayMode === 'informative' || audit.scoreDisplayMode === 'notApplicable') {
+      continue
+    }
+
+    const isInsight = id.endsWith('-insight')
+    const isDiagnostic =
+      audit.details?.type === 'table' ||
+      audit.details?.type === 'list' ||
+      id.includes('unused') ||
+      id.includes('unminified') ||
+      id.includes('bootup') ||
+      id.includes('mainthread')
+
+    if (!isInsight && !isDiagnostic) continue
+
+    ranked.push({
+      id,
+      title: audit.title,
+      detail: audit.displayValue || truncateText(audit.description, 110) || 'Needs attention',
+      rank: (1 - audit.score) * 10_000 + (isInsight ? 500 : 0),
+    })
+    seen.add(id)
+  }
+
+  return ranked
+    .sort((a, b) => b.rank - a.rank)
+    .slice(0, 5)
+    .map(({ title, detail, id }) => ({ title, detail, id }))
+}
+
+/**
+ * @param {number} bytes
+ */
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`
+}
+
+/**
+ * @param {unknown} text
+ * @param {number} max
+ */
+function truncateText(text, max) {
+  if (typeof text !== 'string' || !text.trim()) return ''
+  const clean = text.replace(/\s+/g, ' ').replace(/\[.*?\]\(.*?\)/g, '').trim()
+  if (clean.length <= max) return clean
+  return `${clean.slice(0, max - 1)}…`
+}
+
 function formatApiError(status, data) {
   const raw =
     data?.error?.message ||
@@ -106,11 +204,16 @@ function formatApiError(status, data) {
   return raw
 }
 
+/**
+ * Fetch and parse mobile PageSpeed Insights for a URL.
+ * @param {string} rawUrl
+ */
 export async function analyzeUrl(rawUrl) {
   const url = normalizeUrl(rawUrl)
   const params = new URLSearchParams({
     url,
     strategy: 'mobile',
+    category: 'performance',
   })
 
   const apiKey = import.meta.env.VITE_PAGESPEED_API_KEY
@@ -151,13 +254,20 @@ export async function analyzeUrl(rawUrl) {
   }
 
   const audits = lighthouse.audits
+  const metrics = parseMetrics(audits)
+  const issues = topIssues(audits)
 
   return {
     url: lighthouse.finalUrl || url,
+    fetchTime: lighthouse.fetchTime || null,
     score: Math.round(scoreRaw * 100),
-    fcp: audits['first-contentful-paint']?.displayValue || '—',
-    tti: audits.interactive?.displayValue || '—',
-    tbt: audits['total-blocking-time']?.displayValue || '—',
-    opportunities: topOpportunities(audits),
+    metrics,
+    // Back-compat aliases used nowhere after UI update, kept for clarity
+    fcp: metrics.find((m) => m.id === 'first-contentful-paint')?.value || '—',
+    lcp: metrics.find((m) => m.id === 'largest-contentful-paint')?.value || '—',
+    tbt: metrics.find((m) => m.id === 'total-blocking-time')?.value || '—',
+    cls: metrics.find((m) => m.id === 'cumulative-layout-shift')?.value || '—',
+    si: metrics.find((m) => m.id === 'speed-index')?.value || '—',
+    opportunities: issues,
   }
 }
